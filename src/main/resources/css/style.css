@@ -1,0 +1,83 @@
+.root {
+    -fx-font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    -fx-font-size: 13px;
+}
+
+.tab-pane .tab-header-area .tab-header-background {
+    -fx-background-color: #2c3e50;
+}
+
+.tab-pane .tab {
+    -fx-background-color: #34495e;
+    -fx-padding: 8px 20px;
+}
+
+.tab-pane .tab:selected {
+    -fx-background-color: #1abc9c;
+}
+
+.tab-pane .tab .tab-label {
+    -fx-text-fill: #ecf0f1;
+    -fx-font-size: 14px;
+}
+
+.tab-pane .tab:selected .tab-label {
+    -fx-text-fill: #fff;
+    -fx-font-weight: bold;
+}
+
+.button {
+    -fx-background-color: #ecf0f1;
+    -fx-background-radius: 4px;
+    -fx-cursor: hand;
+    -fx-padding: 6px 14px;
+}
+
+.button:hover {
+    -fx-background-color: #d5dbdb;
+}
+
+.primary-btn {
+    -fx-background-color: #1abc9c;
+    -fx-text-fill: #fff;
+    -fx-font-weight: bold;
+}
+
+.primary-btn:hover {
+    -fx-background-color: #16a085;
+}
+
+.run-btn {
+    -fx-background-color: #2ecc71;
+    -fx-text-fill: #fff;
+    -fx-font-weight: bold;
+}
+
+.run-btn:hover {
+    -fx-background-color: #27ae60;
+}
+
+.titled-pane > .title {
+    -fx-background-color: #ecf0f1;
+    -fx-background-radius: 4px;
+    -fx-font-weight: bold;
+}
+
+.text-area, .text-field {
+    -fx-background-radius: 4px;
+    -fx-border-radius: 4px;
+    -fx-border-color: #bdc3c7;
+}
+
+.list-view {
+    -fx-background-radius: 4px;
+}
+
+.tool-bar {
+    -fx-background-color: #f8f9fa;
+    -fx-padding: 6px;
+}
+
+.separator {
+    -fx-padding: 4px;
+}

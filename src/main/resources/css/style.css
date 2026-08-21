@@ -57,6 +57,16 @@
     -fx-background-color: #27ae60;
 }
 
+.ai-btn {
+    -fx-background-color: #9b59b6;
+    -fx-text-fill: #fff;
+    -fx-font-weight: bold;
+}
+
+.ai-btn:hover {
+    -fx-background-color: #8e44ad;
+}
+
 .titled-pane > .title {
     -fx-background-color: #ecf0f1;
     -fx-background-radius: 4px;

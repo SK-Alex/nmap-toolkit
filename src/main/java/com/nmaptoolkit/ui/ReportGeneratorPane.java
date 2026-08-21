@@ -1,5 +1,8 @@
 package com.nmaptoolkit.ui;
 
+import com.nmaptoolkit.llm.LLMClient;
+import com.nmaptoolkit.llm.LLMConfig;
+import com.nmaptoolkit.llm.PromptLibrary;
 import com.nmaptoolkit.report.HtmlReportGenerator;
 import com.nmaptoolkit.report.NmapParser;
 import com.nmaptoolkit.report.NmapReport;
@@ -14,20 +17,28 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 
 /**
- * 报告生成器界面：解析 Nmap 输出并渲染为 HTML 报告，支持导出
+ * 报告生成器界面：解析 Nmap 输出并渲染为 HTML 报告，支持大模型分析与导出
  */
 public class ReportGeneratorPane {
 
     private final BorderPane root = new BorderPane();
     private final NmapParser parser = new NmapParser();
     private final HtmlReportGenerator htmlGen = new HtmlReportGenerator();
+    private final LLMConfig llmConfig = new LLMConfig();
 
     private TextArea taInput;
     private WebView webView;
     private Label lbStatus;
     private String currentHtml = "";
+    private NmapReport currentReport;
+
+    // 大模型分析相关
+    private Tab aiTab;
+    private TextArea taAiResult;
+    private String aiAnalysis = "";
 
     public ReportGeneratorPane() {
+        llmConfig.load();
         buildUI();
     }
 
@@ -41,6 +52,11 @@ public class ReportGeneratorPane {
         btnParse.getStyleClass().add("primary-btn");
         Button btnExample = new Button("载入示例");
         btnExample.setOnAction(e -> loadExample());
+        Button btnAiAnalyze = new Button("大模型分析");
+        btnAiAnalyze.setOnAction(e -> aiAnalyze());
+        btnAiAnalyze.getStyleClass().add("ai-btn");
+        Button btnAiConfig = new Button("大模型配置");
+        btnAiConfig.setOnAction(e -> aiConfig());
         Button btnExportHtml = new Button("导出 HTML");
         btnExportHtml.setOnAction(e -> exportHtml());
         Button btnExportPdf = new Button("导出 PDF");
@@ -52,6 +68,7 @@ public class ReportGeneratorPane {
         HBox.setHgrow(spacer, Priority.ALWAYS);
 
         toolBar.getItems().addAll(btnImport, btnParse, btnExample,
+                new Separator(), btnAiAnalyze, btnAiConfig,
                 new Separator(), btnExportHtml, btnExportPdf, spacer, lbStatus);
 
         // 左侧：输入区
@@ -61,13 +78,30 @@ public class ReportGeneratorPane {
         left.setPadding(new Insets(10));
         VBox.setVgrow(taInput, Priority.ALWAYS);
 
-        // 右侧：预览
+        // 右侧：报告预览 + AI 分析 两个标签页
         webView = new WebView();
-        VBox right = new VBox(6, new Label("报告预览:"), webView);
-        right.setPadding(new Insets(10));
+        VBox previewBox = new VBox(6, new Label("报告预览:"), webView);
+        previewBox.setPadding(new Insets(10));
         VBox.setVgrow(webView, Priority.ALWAYS);
 
-        SplitPane split = new SplitPane(left, right);
+        taAiResult = new TextArea();
+        taAiResult.setEditable(false);
+        taAiResult.setPromptText("点击\"大模型分析\"按钮，AI 分析结果将显示在这里...");
+        taAiResult.setWrapText(true);
+        VBox aiBox = new VBox(6, new Label("AI 分析结果:"), taAiResult);
+        aiBox.setPadding(new Insets(10));
+        VBox.setVgrow(taAiResult, Priority.ALWAYS);
+
+        TabPane rightTabs = new TabPane();
+        Tab previewTab = new Tab("报告预览");
+        previewTab.setClosable(false);
+        previewTab.setContent(previewBox);
+        aiTab = new Tab("AI 分析");
+        aiTab.setClosable(false);
+        aiTab.setContent(aiBox);
+        rightTabs.getTabs().addAll(previewTab, aiTab);
+
+        SplitPane split = new SplitPane(left, rightTabs);
         split.setDividerPositions(0.4);
 
         root.setTop(toolBar);
@@ -123,6 +157,8 @@ public class ReportGeneratorPane {
         }
         try {
             NmapReport report = parser.parse(content);
+            currentReport = report;
+            htmlGen.setAiAnalysis(aiAnalysis);
             currentHtml = htmlGen.generate(report);
             webView.getEngine().loadContent(currentHtml);
             int hosts = report.hosts.size();
@@ -133,6 +169,66 @@ public class ReportGeneratorPane {
         } catch (Exception ex) {
             lbStatus.setText("解析失败: " + ex.getMessage());
         }
+    }
+
+    /**
+     * 大模型分析
+     */
+    private void aiAnalyze() {
+        if (currentReport == null) {
+            parseAndRender();
+            if (currentReport == null) {
+                lbStatus.setText("请先解析生成报告，再进行大模型分析");
+                return;
+            }
+        }
+        if (llmConfig.apiKey.isBlank()) {
+            showInfo("请先配置大模型 API Key（点击\"大模型配置\"）");
+            return;
+        }
+
+        // 切换到 AI 分析标签页
+        aiTab.getTabPane().getSelectionModel().select(aiTab);
+        taAiResult.setText("正在调用大模型分析，请稍候...\n");
+        lbStatus.setText("状态: 正在调用大模型分析...");
+
+        PromptLibrary.Template template = PromptLibrary.get(llmConfig.promptTemplate);
+        String systemPrompt = template.prompt();
+        String userContent = currentReport.toPlainText();
+
+        LLMClient client = new LLMClient(llmConfig);
+        client.chatAsync(systemPrompt, userContent,
+                result -> javafx.application.Platform.runLater(() -> {
+                    aiAnalysis = result;
+                    taAiResult.setText(result);
+                    lbStatus.setText("状态: 大模型分析完成（提示词: " + template.name() + "）");
+                    // 重新渲染报告，融合 AI 分析
+                    renderWithAi();
+                }),
+                error -> javafx.application.Platform.runLater(() -> {
+                    taAiResult.setText("大模型分析失败:\n" + error);
+                    lbStatus.setText("状态: 大模型分析失败");
+                }));
+    }
+
+    /**
+     * 融合 AI 分析结果重新渲染报告
+     */
+    private void renderWithAi() {
+        if (currentReport == null) return;
+        htmlGen.setAiAnalysis(aiAnalysis);
+        currentHtml = htmlGen.generate(currentReport);
+        webView.getEngine().loadContent(currentHtml);
+    }
+
+    /**
+     * 打开大模型配置对话框
+     */
+    private void aiConfig() {
+        LLMConfigDialog.show(
+                java.util.List.copyOf(PromptLibrary.all().keySet()),
+                llmConfig);
+        lbStatus.setText("大模型配置已更新");
     }
 
     private void loadExample() {
@@ -208,6 +304,13 @@ public class ReportGeneratorPane {
             }
         });
         delay.play();
+    }
+
+    private void showInfo(String msg) {
+        Alert alert = new Alert(Alert.AlertType.INFORMATION, msg, ButtonType.OK);
+        alert.setHeaderText(null);
+        alert.setTitle("提示");
+        alert.show();
     }
 
     public BorderPane getRoot() {
